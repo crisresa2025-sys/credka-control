@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CREDKA-CONTROL</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+body{font-family:Inter,system-ui}
+.tab-active{background:#16a34a;color:white}
+</style>
+</head>
+<body class="bg-zinc-50 min-h-screen">
+<div id="app" class="max-w-5xl mx-auto p-3 md:p-6">
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight">CREDKA-CONTROL 💰</h1>
+      <p class="text-sm text-zinc-500">Conectado a Supabase: <span id="supa-url" class="font-mono text-xs"></span></p>
+    </div>
+    <div class="flex gap-2">
+      <button id="btn-config" class="px-3 py-2 bg-white border rounded-lg text-sm">⚙️ Configurar Supabase</button>
+      <button id="btn-refresh" class="px-3 py-2 bg-black text-white rounded-lg text-sm">↻ Actualizar</button>
+    </div>
+  </header>
+
+  <div id="setup" class="hidden bg-white border rounded-2xl p-5 shadow-sm">
+    <h2 class="font-bold text-lg mb-3">Conectar Supabase</h2>
+    <p class="text-sm text-zinc-600 mb-3">Pegá las 2 claves de tu captura de API Keys. Ya tengo la URL, solo falta la publishable.</p>
+    <label class="text-xs font-semibold">SUPABASE URL</label>
+    <input id="inp-url" class="w-full border rounded-lg p-2 mb-3 font-mono text-sm" value="https://uzinjgrjwvjpuxepiwdy.supabase.co">
+    <label class="text-xs font-semibold">PUBLISHABLE KEY (sb_publishable_...)</label>
+    <textarea id="inp-key" class="w-full border rounded-lg p-2 mb-3 font-mono text-xs" rows="3" placeholder="sb_publishable_..."></textarea>
+    <button id="btn-save-config" class="w-full bg-green-600 text-white rounded-lg py-3 font-bold">Guardar y Conectar</button>
+    <p id="setup-msg" class="text-xs mt-2"></p>
+  </div>
+
+  <nav id="tabs" class="flex gap-2 overflow-auto mb-4 pb-1">
+    <button data-tab="dash" class="tab tab-active px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap">Dashboard</button>
+    <button data-tab="carteras" class="tab px-4 py-2 rounded-full bg-white border text-sm font-semibold whitespace-nowrap">Carteras</button>
+    <button data-tab="clientes" class="tab px-4 py-2 rounded-full bg-white border text-sm font-semibold whitespace-nowrap">Clientes</button>
+    <button data-tab="simulador" class="tab px-4 py-2 rounded-full bg-white border text-sm font-semibold whitespace-nowrap">Simulador</button>
+    <button data-tab="creditos" class="tab px-4 py-2 rounded-full bg-white border text-sm font-semibold whitespace-nowrap">Créditos</button>
+  </nav>
+
+  <section id="view-dash" class="view">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="bg-white border rounded-2xl p-4"><p class="text-xs text-zinc-500">En Carteras</p><p id="kpi-carteras" class="text-2xl font-bold">-</p></div>
+      <div class="bg-white border rounded-2xl p-4"><p class="text-xs text-zinc-500">Prestado Total</p><p id="kpi-prestado" class="text-2xl font-bold">-</p></div>
+      <div class="bg-white border rounded-2xl p-4"><p class="text-xs text-zinc-500">Cobrado</p><p id="kpi-cobrado" class="text-2xl font-bold text-green-600">-</p></div>
+      <div class="bg-white border rounded-2xl p-4"><p class="text-xs text-zinc-500">Créditos Vigentes</p><p id="kpi-vigentes" class="text-2xl font-bold">-</p></div>
+    </div>
+    <div id="dash-list" class="bg-white border rounded-2xl p-4 text-sm">Cargando...</div>
+  </section>
+
+  <section id="view-carteras" class="view hidden">
+    <div class="bg-white border rounded-2xl p-4 mb-4">
+      <h3 class="font-bold mb-3">Nueva Cartera</h3>
+      <div class="flex flex-col md:flex-row gap-2">
+        <input id="cart-nombre" placeholder="Nombre ej: Cartera Principal" class="flex-1 border rounded-lg p-2 text-sm">
+        <input id="cart-saldo" type="number" placeholder="Saldo inicial" class="w-full md:w-32 border rounded-lg p-2 text-sm">
+        <button id="btn-add-cartera" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Crear</button>
+      </div>
+    </div>
+    <div id="carteras-list" class="grid gap-3"></div>
+  </section>
+
+  <section id="view-clientes" class="view hidden">
+    <div class="bg-white border rounded-2xl p-4 mb-4">
+      <h3 class="font-bold mb-3">Nuevo Cliente</h3>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <input id="cli-nombre" placeholder="Nombre completo" class="border rounded-lg p-2 text-sm">
+        <input id="cli-dni" placeholder="DNI" class="border rounded-lg p-2 text-sm">
+        <input id="cli-tel" placeholder="Teléfono" class="border rounded-lg p-2 text-sm">
+        <button id="btn-add-cliente" class="bg-black text-white px-4 py-2 rounded-lg text-sm font-bold">Agregar</button>
+      </div>
+    </div>
+    <input id="cli-buscar" placeholder="🔍 Buscar por nombre o DNI" class="w-full border rounded-lg p-2 text-sm mb-3">
+    <div id="clientes-list" class="grid gap-2"></div>
+  </section>
+
+  <section id="view-simulador" class="view hidden">
+    <div class="bg-white border rounded-2xl p-4">
+      <h3 class="font-bold text-lg mb-3">Simulador + Guardar en Cartera</h3>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs font-semibold">Cliente</label>
+          <select id="sim-cliente" class="w-full border rounded-lg p-2 text-sm mb-2"></select>
+          <div class="flex gap-2 mb-2">
+            <input id="sim-cliente-nuevo-nombre" placeholder="Nuevo cliente nombre" class="flex-1 border rounded p-2 text-xs">
+            <input id="sim-cliente-nuevo-dni" placeholder="DNI" class="w-24 border rounded p-2 text-xs">
+          </div>
+          <label class="text-xs font-semibold">Cartera destino</label>
+          <select id="sim-cartera" class="w-full border rounded-lg p-2 text-sm mb-2"></select>
+          <label class="text-xs font-semibold">Monto $</label>
+          <input id="sim-monto" type="number" value="50000" class="w-full border rounded-lg p-2 text-sm mb-2">
+          <label class="text-xs font-semibold">Tasa % mensual</label>
+          <input id="sim-tasa" type="number" value="20" class="w-full border rounded-lg p-2 text-sm mb-2">
+          <label class="text-xs font-semibold">Plazo (cuotas)</label>
+          <input id="sim-plazo" type="number" value="4" class="w-full border rounded-lg p-2 text-sm mb-2">
+          <label class="text-xs font-semibold">Frecuencia</label>
+          <select id="sim-frec" class="w-full border rounded-lg p-2 text-sm mb-3">
+            <option value="semanal">Semanal</option>
+            <option value="quincenal">Quincenal</option>
+            <option value="mensual" selected>Mensual</option>
+          </select>
+          <button id="btn-calcular" class="w-full bg-zinc-900 text-white rounded-lg py-2 font-bold text-sm">Calcular Cuotas</button>
+        </div>
+        <div>
+          <div id="sim-resumen" class="bg-zinc-50 border rounded-xl p-3 text-sm mb-3">Ingresá datos y calculá</div>
+          <div id="sim-cuotas" class="max-h-[320px] overflow-auto"></div>
+          <button id="btn-guardar-credito" class="hidden mt-3 w-full bg-green-600 text-white rounded-lg py-3 font-bold">💾 Guardar en Cartera (crea crédito + cuotas)</button>
+          <p id="sim-msg" class="text-xs mt-2"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-creditos" class="view hidden">
+    <div id="creditos-list" class="grid gap-3">Cargando créditos...</div>
+  </section>
+</div>
+
+<script>
+let supabaseClient = null;
+let CACHE = {carteras:[], clientes:[], creditos:[], cuotas:[], pagos:[]};
+let SIM_DATA = null;
+
+function getCfg(){
+  return {
+    url: localStorage.getItem('SUPA_URL') || 'https://uzinjgrjwvjpuxepiwdy.supabase.co',
+    key: localStorage.getItem('SUPA_KEY') || ''
+  }
+}
+function setCfg(url,key){
+  localStorage.setItem('SUPA_URL',url);
+  localStorage.setItem('SUPA_KEY',key);
+}
+function initSupa(){
+  const {url,key} = getCfg();
+  document.getElementById('supa-url').textContent = url;
+  document.getElementById('inp-url').value = url;
+  document.getElementById('inp-key').value = key;
+  if(!key){
+    document.getElementById('setup').classList.remove('hidden');
+    document.getElementById('tabs').classList.add('hidden');
+    return false;
+  }
+  try{
+    supabaseClient = window.supabase.createClient(url,key);
+    return true;
+  }catch(e){
+    document.getElementById('setup').classList.remove('hidden');
+    document.getElementById('setup-msg').textContent = 'Error: '+e.message;
+    return false;
+  }
+}
+function showSetup(show){
+  document.getElementById('setup').classList.toggle('hidden',!show);
+}
+
+document.getElementById('btn-config').onclick = ()=> showSetup(true);
+document.getElementById('btn-save-config').onclick = ()=>{
+  const url = document.getElementById('inp-url').value.trim();
+  const key = document.getElementById('inp-key').value.trim();
+  if(!url||!key){document.getElementById('setup-msg').textContent='Pegá URL y la key sb_publishable_...';return;}
+  setCfg(url,key);
+  if(initSupa()){
+    showSetup(false);
+    document.getElementById('tabs').classList.remove('hidden');
+    loadAll();
+  }
+};
+document.getElementById('btn-refresh').onclick = ()=> loadAll();
+
+document.querySelectorAll('.tab').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('.tab').forEach(x=>{x.classList.remove('tab-active'); x.classList.add('bg-white','border')});
+    b.classList.add('tab-active'); b.classList.remove('bg-white','border');
+    const t = b.dataset.tab;
+    document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+    document.getElementById('view-'+t).classList.remove('hidden');
+    if(t==='dash') renderDash();
+  }
+});
+
+async function loadAll(){
+  if(!supabaseClient) return;
+  try{
+    const [cart, cli, cred, cuot, pag] = await Promise.all([
+      supabaseClient.from('carteras').select('*').order('created_at',{ascending:false}),
+      supabaseClient.from('clientes').select('*').order('created_at',{ascending:false}),
+      supabaseClient.from('creditos').select('*').order('created_at',{ascending:false}),
+      supabaseClient.from('cuotas').select('*').order('vencimiento'),
+      supabaseClient.from('pagos').select('*')
+    ]);
+    CACHE.carteras = cart.data||[];
+    CACHE.clientes = cli.data||[];
+    CACHE.creditos = cred.data||[];
+    CACHE.cuotas = cuot.data||[];
+    CACHE.pagos = pag.data||[];
+    renderAll();
+  }catch(e){
+    console.error(e);
+    document.getElementById('dash-list').innerHTML = '<span class=text-red-600>Error: '+e.message+'<br>Revisá que hayas pegado bien la publishable key y que RLS esté en Allow all</span>';
+  }
+}
+function renderAll(){
+  renderCarteras(); renderClientes(); renderSimSelects(); renderDash(); renderCreditos();
+}
+function fmt(n){return '$'+Number(n).toLocaleString('es-AR');}
+function renderCarteras(){
+  const el = document.getElementById('carteras-list');
+  if(!CACHE.carteras.length){el.innerHTML='<p class=text-sm text-zinc-500>Sin carteras, creá una arriba</p>';return;}
+  el.innerHTML = CACHE.carteras.map(c=>`
+    <div class="bg-white border rounded-xl p-3 flex justify-between items-center">
+      <div><p class="font-bold text-sm">${c.nombre}</p><p class="text-xs text-zinc-500">Saldo: ${fmt(c.saldo||0)} • ${c.descripcion||''}</p></div>
+      <button onclick="delCartera('${c.id}')" class="text-xs text-red-600 border px-2 py-1 rounded">Borrar</button>
+    </div>`).join('');
+}
+window.delCartera = async (id)=>{
+  if(!confirm('Borrar cartera?')) return;
+  await supabaseClient.from('carteras').delete().eq('id',id);
+  loadAll();
+}
+document.getElementById('btn-add-cartera').onclick = async ()=>{
+  const nombre = document.getElementById('cart-nombre').value.trim();
+  const saldo = parseFloat(document.getElementById('cart-saldo').value)||0;
+  if(!nombre) return alert('Nombre requerido');
+  await supabaseClient.from('carteras').insert({nombre,saldo});
+  document.getElementById('cart-nombre').value=''; document.getElementById('cart-saldo').value='';
+  loadAll();
+};
+function renderClientes(){
+  const q = (document.getElementById('cli-buscar').value||'').toLowerCase();
+  let list = CACHE.clientes;
+  if(q) list = list.filter(c=> (c.nombre||'').toLowerCase().includes(q) || (c.dni||'').includes(q));
+  document.getElementById('clientes-list').innerHTML = list.map(c=>`
+    <div class="bg-white border rounded-xl p-3 flex justify-between items-center">
+      <div><p class="font-bold text-sm">${c.nombre}</p><p class="text-xs text-zinc-500">DNI: ${c.dni||'-'} • Tel: ${c.telefono||'-'}</p></div>
+      <button onclick="delCliente('${c.id}')" class="text-xs text-red-600 border px-2 py-1 rounded">Borrar</button>
+    </div>`).join('') || '<p class=text-sm text-zinc-500>Sin clientes</p>';
+}
+window.delCliente = async (id)=>{
+  if(!confirm('Borrar cliente?')) return;
+  await supabaseClient.from('clientes').delete().eq('id',id);
+  loadAll();
+}
+document.getElementById('cli-buscar').oninput = renderClientes;
+document.getElementById('btn-add-cliente').onclick = async ()=>{
+  const nombre = document.getElementById('cli-nombre').value.trim();
+  const dni = document.getElementById('cli-dni').value.trim();
+  const telefono = document.getElementById('cli-tel').value.trim();
+  if(!nombre) return alert('Nombre requerido');
+  await supabaseClient.from('clientes').insert({nombre,dni,telefono});
+  document.getElementById('cli-nombre').value=''; document.getElementById('cli-dni').value=''; document.getElementById('cli-tel').value='';
+  loadAll();
+};
+function renderSimSelects(){
+  const cliSel = document.getElementById('sim-cliente');
+  const cartSel = document.getElementById('sim-cartera');
+  cliSel.innerHTML = '<option value="">-- Seleccionar cliente existente --</option>' + CACHE.clientes.map(c=>`<option value="${c.id}">${c.nombre} - ${c.dni||''}</option>`).join('');
+  cartSel.innerHTML = '<option value="">-- Seleccionar cartera --</option>' + CACHE.carteras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+}
+function calcCuotas(monto,tasa,plazo,frec){
+  const factorFrec = frec==='semanal'?0.25: frec==='quincenal'?0.5:1;
+  // interés simple mensual proporcional a frecuencia
+  const total = monto * (1 + (tasa/100) * plazo * factorFrec);
+  const cuotaMonto = total / plazo;
+  const cuotas=[];
+  let base = new Date();
+  for(let i=1;i<=plazo;i++){
+    let venc = new Date(base);
+    if(frec==='semanal') venc.setDate(base.getDate()+i*7);
+    else if(frec==='quincenal') venc.setDate(base.getDate()+i*15);
+    else venc.setMonth(base.getMonth()+i);
+    cuotas.push({nro:i, monto: Math.round(cuotaMonto), vencimiento: venc.toISOString().split('T')[0]});
+  }
+  return {total, cuotaMonto, cuotas};
+}
+document.getElementById('btn-calcular').onclick = ()=>{
+  const monto = parseFloat(document.getElementById('sim-monto').value)||0;
+  const tasa = parseFloat(document.getElementById('sim-tasa').value)||0;
+  const plazo = parseInt(document.getElementById('sim-plazo').value)||0;
+  const frec = document.getElementById('sim-frec').value;
+  if(!monto||!plazo){alert('Monto y plazo requeridos');return;}
+  const res = calcCuotas(monto,tasa,plazo,frec);
+  SIM_DATA = {monto,tasa,plazo,frec, ...res};
+  document.getElementById('sim-resumen').innerHTML = `<b>Total a pagar:</b> ${fmt(res.total)}<br><b>Cuota:</b> ${fmt(res.cuotaMonto)} x ${plazo} (${frec})`;
+  document.getElementById('sim-cuotas').innerHTML = res.cuotas.map(c=>`<div class="flex justify-between border-b py-1 text-xs"><span>#${c.nro} - ${c.vencimiento}</span><span class="font-bold">${fmt(c.monto)}</span></div>`).join('');
+  document.getElementById('btn-guardar-credito').classList.remove('hidden');
+};
+document.getElementById('btn-guardar-credito').onclick = async ()=>{
+  const btn = document.getElementById('btn-guardar-credito');
+  const msg = document.getElementById('sim-msg');
+  if(!SIM_DATA) return;
+  const cartera_id = document.getElementById('sim-cartera').value;
+  if(!cartera_id){alert('Elegí una cartera');return;}
+  let cliente_id = document.getElementById('sim-cliente').value;
+  const nuevoNom = document.getElementById('sim-cliente-nuevo-nombre').value.trim();
+  const nuevoDni = document.getElementById('sim-cliente-nuevo-dni').value.trim();
+  try{
+    btn.textContent='Guardando...'; btn.disabled=true;
+    if(!cliente_id && nuevoNom){
+      const {data,error} = await supabaseClient.from('clientes').insert({nombre:nuevoNom,dni:nuevoDni}).select('id').single();
+      if(error) throw error;
+      cliente_id = data.id;
+    }
+    if(!cliente_id) throw new Error('Seleccioná o creá un cliente');
+    // crear credito
+    const {data:cred, error:errCred} = await supabaseClient.from('creditos').insert({
+      cliente_id, cartera_id, monto: SIM_DATA.monto, tasa: SIM_DATA.tasa, plazo: SIM_DATA.plazo, frecuencia: SIM_DATA.frec, total_a_pagar: SIM_DATA.total, estado:'vigente'
+    }).select('id').single();
+    if(errCred) throw errCred;
+    // crear cuotas
+    const cuotasIns = SIM_DATA.cuotas.map(c=>({
+      credito_id: cred.id, nro_cuota: c.nro, monto_cuota: c.monto, vencimiento: c.vencimiento, estado:'pendiente'
+    }));
+    const {error:errCuot} = await supabaseClient.from('cuotas').insert(cuotasIns);
+    if(errCuot) throw errCuot;
+    msg.textContent='✅ Crédito guardado ID: '+cred.id;
+    msg.className='text-xs mt-2 text-green-600';
+    loadAll();
+    btn.textContent='💾 Guardar en Cartera (crea crédito + cuotas)'; btn.disabled=false;
+  }catch(e){
+    msg.textContent='❌ Error: '+e.message;
+    msg.className='text-xs mt-2 text-red-600';
+    btn.textContent='💾 Guardar en Cartera'; btn.disabled=false;
+  }
+};
+function renderDash(){
+  const totalCarteras = CACHE.carteras.reduce((s,c)=>s+Number(c.saldo||0),0);
+  const prestado = CACHE.creditos.reduce((s,c)=>s+Number(c.total_a_pagar||c.monto||0),0);
+  const cobrado = CACHE.pagos.reduce((s,p)=>s+Number(p.monto||0),0);
+  const vigentes = CACHE.creditos.filter(c=>c.estado==='vigente').length;
+  document.getElementById('kpi-carteras').textContent = fmt(totalCarteras);
+  document.getElementById('kpi-prestado').textContent = fmt(prestado);
+  document.getElementById('kpi-cobrado').textContent = fmt(cobrado);
+  document.getElementById('kpi-vigentes').textContent = vigentes;
+  document.getElementById('dash-list').innerHTML = CACHE.creditos.slice(0,5).map(c=>{
+    const cli = CACHE.clientes.find(x=>x.id===c.cliente_id);
+    return `<div class="flex justify-between border-b py-2"><span>${cli?cli.nombre:'Cliente'} - ${fmt(c.monto)}</span><span class="text-xs">${c.frecuencia} x${c.plazo}</span></div>`;
+  }).join('') || 'Sin créditos aún';
+}
+function renderCreditos(){
+  const el = document.getElementById('creditos-list');
+  if(!CACHE.creditos.length){el.innerHTML='<p class=text-sm text-zinc-500>Sin créditos. Usá el Simulador para crear uno.</p>';return;}
+  el.innerHTML = CACHE.creditos.map(c=>{
+    const cli = CACHE.clientes.find(x=>x.id===c.cliente_id);
+    const cart = CACHE.carteras.find(x=>x.id===c.cartera_id);
+    const cuotasDelCred = CACHE.cuotas.filter(q=>q.credito_id===c.id);
+    const pagadas = cuotasDelCred.filter(q=>q.estado==='pagada').length;
+    return `<div class="bg-white border rounded-2xl p-4">
+      <div class="flex justify-between">
+        <div><p class="font-bold text-sm">${cli?cli.nombre:'Cliente'} - ${fmt(c.monto)} → ${fmt(c.total_a_pagar||c.monto)}</p><p class="text-xs text-zinc-500">Cartera: ${cart?cart.nombre:'-'} • ${c.frecuencia} x${c.plazo} • ${c.estado} • ${pagadas}/${cuotasDelCred.length} pagas</p></div>
+        <button onclick="toggleCuotas('${c.id}')" class="text-xs border px-2 py-1 rounded">Ver cuotas</button>
+      </div>
+      <div id="cuotas-${c.id}" class="hidden mt-3 space-y-1">
+        ${cuotasDelCred.map(q=>`<div class="flex justify-between items-center text-xs border-b py-1"><span>#${q.nro_cuota} ${q.vencimiento} - ${fmt(q.monto_cuota)} - ${q.estado}</span><button onclick="pagarCuota('${q.id}','${c.id}',${q.monto_cuota})" class="${q.estado==='pagada'?'hidden':''} bg-green-600 text-white px-2 py-1 rounded text-[10px]">Cobrar</button></div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+window.toggleCuotas = (id)=>{
+  document.getElementById('cuotas-'+id).classList.toggle('hidden');
+}
+window.pagarCuota = async (cuotaId, creditoId, monto)=>{
+  if(!confirm('Marcar como cobrada $'+monto+'?')) return;
+  await supabaseClient.from('cuotas').update({estado:'pagada', monto_pagado:monto}).eq('id',cuotaId);
+  await supabaseClient.from('pagos').insert({cuota_id:cuotaId, credito_id:creditoId, monto, metodo:'efectivo'});
+  loadAll();
+}
+
+// init
+if(initSupa()){ loadAll(); }
+</script>
+</body>
+</html>
